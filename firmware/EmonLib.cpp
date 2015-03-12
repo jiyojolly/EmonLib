@@ -4,44 +4,74 @@
   GNU GPL
   modified to use up to 12 bits ADC resolution (ex. Arduino Due)
   by boredman@boredomprojects.net 26.12.2013
+  Low Pass filter for offset removal replaces HP filter 1/1/2015 - RW
 */
 
 //#include "WProgram.h" un-comment for use on older versions of Arduino IDE
 #include "EmonLib.h"
 
+
 #include "application.h"
+
+
 
 //--------------------------------------------------------------------------------------
 // Sets the pins to be used for voltage and current sensors
 //--------------------------------------------------------------------------------------
-void EnergyMonitor::voltage(int _inPinV, double _VCAL, double _PHASECAL)
+void EnergyMonitor::voltage(unsigned int _inPinV, double _VCAL, double _PHASECAL)
 {
    inPinV = _inPinV;
    VCAL = _VCAL;
    PHASECAL = _PHASECAL;
+   offsetV = ADC_COUNTS>>1;
 }
 
-void EnergyMonitor::current(int _inPinI, double _ICAL)
+void EnergyMonitor::current(unsigned int _inPinI, double _ICAL)
 {
    inPinI = _inPinI;
    ICAL = _ICAL;
+   offsetI = ADC_COUNTS>>1;
+}
+
+//--------------------------------------------------------------------------------------
+// Sets the pins to be used for voltage and current sensors based on emontx pin map
+//--------------------------------------------------------------------------------------
+void EnergyMonitor::voltageTX(double _VCAL, double _PHASECAL)
+{
+   inPinV = 2;
+   VCAL = _VCAL;
+   PHASECAL = _PHASECAL;
+   offsetV = ADC_COUNTS>>1;
+}
+
+void EnergyMonitor::currentTX(unsigned int _channel, double _ICAL)
+{
+   if (_channel == 1) inPinI = 3;
+   if (_channel == 2) inPinI = 0;
+   if (_channel == 3) inPinI = 1;
+   ICAL = _ICAL;
+   offsetI = ADC_COUNTS>>1;
 }
 
 //--------------------------------------------------------------------------------------
 // emon_calc procedure
-// Calculates realPower,apparentPower,powerFactor,Vrms,Irms,kwh increment
+// Calculates realPower,apparentPower,powerFactor,Vrms,Irms,kWh increment
 // From a sample window of the mains AC voltage and current.
 // The Sample window length is defined by the number of half wavelengths or crossings we choose to measure.
 //--------------------------------------------------------------------------------------
-void EnergyMonitor::calcVI(int crossings, unsigned int timeout)
+void EnergyMonitor::calcVI(unsigned int crossings, unsigned int timeout)
 {
-	int SUPPLYVOLTAGE=3300;
+   #if defined emonTxV3
+	int SupplyVoltage=3300;
+   #else 
+	int SupplyVoltage = readVcc();
+   #endif
 
-  int crossCount = 0;                             //Used to measure number of times threshold is crossed.
-  int numberOfSamples = 0;                        //This is now incremented  
+  unsigned int crossCount = 0;                             //Used to measure number of times threshold is crossed.
+  unsigned int numberOfSamples = 0;                        //This is now incremented  
 
   //-------------------------------------------------------------------------------------------------------------------------
-  // 1) Waits for the waveform to be close to 'zero' (500 adc) part in sin curve.
+  // 1) Waits for the waveform to be close to 'zero' (mid-scale adc) part in sin curve.
   //-------------------------------------------------------------------------------------------------------------------------
   boolean st=false;                                  //an indicator to exit the while loop
 
@@ -50,24 +80,19 @@ void EnergyMonitor::calcVI(int crossings, unsigned int timeout)
   while(st==false)                                   //the while loop...
   {
      startV = analogRead(inPinV);                    //using the voltage waveform
-     if ((startV < (ADC_COUNTS/2+50)) && (startV > (ADC_COUNTS/2-50))) st=true;  //check its within range
+     if ((startV < (ADC_COUNTS*0.55)) && (startV > (ADC_COUNTS*0.45))) st=true;  //check its within range
      if ((millis()-start)>timeout) st = true;
   }
   
   //-------------------------------------------------------------------------------------------------------------------------
-  // 2) Main measurment loop
+  // 2) Main measurement loop
   //------------------------------------------------------------------------------------------------------------------------- 
   start = millis(); 
 
   while ((crossCount < crossings) && ((millis()-start)<timeout)) 
   {
-    numberOfSamples++;                            //Count number of times looped.
-
-    lastSampleV=sampleV;                          //Used for digital high pass filter
-    lastSampleI=sampleI;                          //Used for digital high pass filter
-    
-    lastFilteredV = filteredV;                    //Used for offset removal
-    lastFilteredI = filteredI;                    //Used for offset removal   
+    numberOfSamples++;                       //Count number of times looped.
+    lastFilteredV = filteredV;               //Used for delay/phase compensation
     
     //-----------------------------------------------------------------------------
     // A) Read in raw voltage and current samples
@@ -76,10 +101,13 @@ void EnergyMonitor::calcVI(int crossings, unsigned int timeout)
     sampleI = analogRead(inPinI);                 //Read in raw current signal
 
     //-----------------------------------------------------------------------------
-    // B) Apply digital high pass filters to remove 2.5V DC offset (centered on 0V).
+    // B) Apply digital low pass filters to extract the 2.5 V or 1.65 V dc offset,
+    //     then subtract this - signal is now centred on 0 counts.
     //-----------------------------------------------------------------------------
-    filteredV = 0.996*(lastFilteredV+(sampleV-lastSampleV));
-    filteredI = 0.996*(lastFilteredI+(sampleI-lastSampleI));
+    offsetV = offsetV + ((sampleV-offsetV)/1024);
+	filteredV = sampleV - offsetV;
+    offsetI = offsetI + ((sampleI-offsetI)/1024);
+	filteredI = sampleI - offsetI;
    
     //-----------------------------------------------------------------------------
     // C) Root-mean-square method voltage
@@ -121,12 +149,12 @@ void EnergyMonitor::calcVI(int crossings, unsigned int timeout)
   // 3) Post loop calculations
   //------------------------------------------------------------------------------------------------------------------------- 
   //Calculation of the root of the mean of the voltage and current squared (rms)
-  //Calibration coeficients applied. 
+  //Calibration coefficients applied. 
   
-  double V_RATIO = VCAL *((SUPPLYVOLTAGE/1000.0) / (ADC_COUNTS));
+  double V_RATIO = VCAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
   Vrms = V_RATIO * sqrt(sumV / numberOfSamples); 
   
-  double I_RATIO = ICAL *((SUPPLYVOLTAGE/1000.0) / (ADC_COUNTS));
+  double I_RATIO = ICAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
   Irms = I_RATIO * sqrt(sumI / numberOfSamples); 
 
   //Calculation power values
@@ -142,16 +170,24 @@ void EnergyMonitor::calcVI(int crossings, unsigned int timeout)
 }
 
 //--------------------------------------------------------------------------------------
-double EnergyMonitor::calcIrms(int NUMBER_OF_SAMPLES)
+double EnergyMonitor::calcIrms(unsigned int Number_of_Samples)
 {
-	int SUPPLYVOLTAGE=3300;
+  
+   #if defined emonTxV3
+	int SupplyVoltage=3300;
+   #else 
+	int SupplyVoltage = readVcc();
+   #endif
 
-  for (int n = 0; n < NUMBER_OF_SAMPLES; n++)
+  
+  for (unsigned int n = 0; n < Number_of_Samples; n++)
   {
-    lastSampleI = sampleI;
     sampleI = analogRead(inPinI);
-    lastFilteredI = filteredI;
-    filteredI = 0.996*(lastFilteredI+sampleI-lastSampleI);
+
+    // Digital low pass filter extracts the 2.5 V or 1.65 V dc offset, 
+	//  then subtract this - signal is now centered on 0 counts.
+    offsetI = (offsetI + (sampleI-offsetI)/1024);
+	filteredI = sampleI - offsetI;
 
     // Root-mean-square method current
     // 1) square current values
@@ -160,8 +196,8 @@ double EnergyMonitor::calcIrms(int NUMBER_OF_SAMPLES)
     sumI += sqI;
   }
 
-  double I_RATIO = ICAL *((SUPPLYVOLTAGE/1000.0) / (ADC_COUNTS));
-  Irms = I_RATIO * sqrt(sumI / NUMBER_OF_SAMPLES); 
+  double I_RATIO = ICAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
+  Irms = I_RATIO * sqrt(sumI / Number_of_Samples); 
 
   //Reset accumulators
   sumI = 0;
@@ -184,4 +220,7 @@ void EnergyMonitor::serialprint()
     Serial.println(' ');
     delay(100); 
 }
+
+//thanks to http://hacking.majenko.co.uk/making-accurate-adc-readings-on-arduino
+//and Jérôme who alerted us to http://provideyourown.com/2012/secret-arduino-voltmeter-measure-battery-voltage/
 
