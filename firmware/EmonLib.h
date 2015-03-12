@@ -4,22 +4,23 @@
   GNU GPL
   modified to use up to 12 bits ADC resolution (ex. Arduino Due)
   by boredman@boredomprojects.net 26.12.2013
+  Low Pass filter for offset removal replaces HP filter 1/1/2015 - RW
 */
 
 #ifndef EmonLib_h
 #define EmonLib_h
 
-#include "application.h"
 
+#include "application.h"
 #include "math.h"
+
 
 // to enable 12-bit ADC resolution on Arduino Due, 
 // include the following line in main sketch inside setup() function:
 //  analogReadResolution(ADC_BITS);
 // otherwise will default to 10 bits, as in regular Arduino-based boards.
 
-#define ADC_BITS    10
-
+#define ADC_BITS    12
 
 #define ADC_COUNTS  (1<<ADC_BITS)
 
@@ -28,13 +29,16 @@ class EnergyMonitor
 {
   public:
 
-    void voltage(int _inPinV, double _VCAL, double _PHASECAL);
-    void current(int _inPinI, double _ICAL);
+    void voltage(unsigned int _inPinV, double _VCAL, double _PHASECAL);
+    void current(unsigned int _inPinI, double _ICAL);
 
-    void calcVI(int crossings, unsigned int timeout);
-    double calcIrms(int NUMBER_OF_SAMPLES);
+    
+
+    void calcVI(unsigned int crossings, unsigned int timeout);
+    double calcIrms(unsigned int NUMBER_OF_SAMPLES);
     void serialprint();
 
+    
     //Useful value variables
     double realPower,
        apparentPower,
@@ -45,9 +49,9 @@ class EnergyMonitor
   private:
 
     //Set Voltage and current input pins
-    int inPinV;
-    int inPinI;
-    //Calibration coeficients
+    unsigned int inPinV;
+    unsigned int inPinI;
+    //Calibration coefficients
     //These need to be set in order to obtain accurate results
     double VCAL;
     double ICAL;
@@ -56,11 +60,13 @@ class EnergyMonitor
     //--------------------------------------------------------------------------------------
     // Variable declaration for emon_calc procedure
     //--------------------------------------------------------------------------------------
-	int lastSampleV,sampleV;   //sample_ holds the raw analog read value, lastSample_ holds the last sample
-	int lastSampleI,sampleI;                      
+	int sampleV;  							 //sample_ holds the raw analog read value
+	int sampleI;                     
 
-	double lastFilteredV,filteredV;                   //Filtered_ is the raw analog value minus the DC offset
-	double lastFilteredI, filteredI;                  
+	double lastFilteredV,filteredV;          //Filtered_ is the raw analog value minus the DC offset
+	double filteredI;                  
+	double offsetV;                          //Low-pass filter output
+	double offsetI;                          //Low-pass filter output               
 
 	double phaseShiftedV;                             //Holds the calibrated phase shifted voltage.
 
@@ -69,7 +75,6 @@ class EnergyMonitor
 	int startV;                                       //Instantaneous voltage at start of sample window.
 
 	boolean lastVCross, checkVCross;                  //Used to measure number of times threshold is crossed.
-	int crossCount;                                   // ''
 
 
 };
