@@ -151,11 +151,7 @@ void EnergyMonitor::calcVI(unsigned int crossings, unsigned int timeout)
 double EnergyMonitor::calcIrms(unsigned int Number_of_Samples)
 {
   
-   #if defined emonTxV3
 	int SupplyVoltage=3300;
-   #else 
-	int SupplyVoltage = readVcc();
-   #endif
 
   
   for (unsigned int n = 0; n < Number_of_Samples; n++)
