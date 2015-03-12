@@ -33,25 +33,6 @@ void EnergyMonitor::current(unsigned int _inPinI, double _ICAL)
    offsetI = ADC_COUNTS>>1;
 }
 
-//--------------------------------------------------------------------------------------
-// Sets the pins to be used for voltage and current sensors based on emontx pin map
-//--------------------------------------------------------------------------------------
-void EnergyMonitor::voltageTX(double _VCAL, double _PHASECAL)
-{
-   inPinV = 2;
-   VCAL = _VCAL;
-   PHASECAL = _PHASECAL;
-   offsetV = ADC_COUNTS>>1;
-}
-
-void EnergyMonitor::currentTX(unsigned int _channel, double _ICAL)
-{
-   if (_channel == 1) inPinI = 3;
-   if (_channel == 2) inPinI = 0;
-   if (_channel == 3) inPinI = 1;
-   ICAL = _ICAL;
-   offsetI = ADC_COUNTS>>1;
-}
 
 //--------------------------------------------------------------------------------------
 // emon_calc procedure
@@ -61,12 +42,9 @@ void EnergyMonitor::currentTX(unsigned int _channel, double _ICAL)
 //--------------------------------------------------------------------------------------
 void EnergyMonitor::calcVI(unsigned int crossings, unsigned int timeout)
 {
-   #if defined emonTxV3
+  
 	int SupplyVoltage=3300;
-   #else 
-	int SupplyVoltage = readVcc();
-   #endif
-
+  
   unsigned int crossCount = 0;                             //Used to measure number of times threshold is crossed.
   unsigned int numberOfSamples = 0;                        //This is now incremented  
 
