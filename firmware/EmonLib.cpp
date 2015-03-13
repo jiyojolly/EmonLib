@@ -7,16 +7,21 @@
   Low Pass filter for offset removal replaces HP filter 1/1/2015 - RW
 */
 
-//#include "WProgram.h" un-comment for use on older versions of Arduino IDE
 #include "EmonLib.h"
-
-
 #include "application.h"
+#include "math.h"
 
 
 
 //--------------------------------------------------------------------------------------
 // Sets the pins to be used for voltage and current sensors
+//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
+// Sets the pins to be used for voltage and current sensors and the
+// calibration factors which are set in setup() in the main program
+// For 1v per 30a SCT-013-030 ICAL is 30
+// For 9v ac power with 10:1 divider VCAL is 250
+// For Spark the theoretical PHASECAL is 1.12
 //--------------------------------------------------------------------------------------
 void EnergyMonitor::voltage(unsigned int _inPinV, double _VCAL, double _PHASECAL)
 {
