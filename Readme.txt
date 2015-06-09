@@ -13,4 +13,5 @@ Thanks Glyn Hudson for writing this nice piece of code. If you want more info ab
 http://openenergymonitor.org/emon/
 
 Forked from https://github.com/openenergymonitor/EmonLib
+Modified for SparkCore by jiyojolly
 
