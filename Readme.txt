@@ -1,9 +1,9 @@
-                             _      _ _     
-                            | |    (_) |    
-   ___ _ __ ___   ___  _ __ | |     _| |__  
-  / _ \ '_ ` _ \ / _ \| '_ \| |    | | '_ \ 
- |  __/ | | | | | (_) | | | | |____| | |_) |
-  \___|_| |_| |_|\___/|_| |_|______|_|_.__/ 
+Integrated-power-control-measurement-
+Automation and Power Measurement of Home Appliances
+     
+     
+     
+
 
 Arduino Energy Monitoring Library - For SparkCore 
 *****************************************************************
