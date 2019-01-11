@@ -1,3 +1,6 @@
+Created by Jiyo Palatti, March 13 2015
+GNU GPL
+
 // This #include statement was automatically added by the Spark IDE.
 #include <SparkIntervalTimer.h>
 
